@@ -323,7 +323,7 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
       streamRef.current = stream;
       
       // Create a new audio context
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) {
         console.error("AudioContext not supported in this browser");
         alert("Your browser doesn't support audio processing. Please try a different browser.");

@@ -1,0 +1,55 @@
+/* Utility class for background position animation */
+.bg-size-200 {
+  background-size: 200% 200%;
+}
+
+/* Animated gradient classes */
+@keyframes gradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-slow {
+  animation: gradientMove 6s linear infinite;
+}
+
+.animate-gradient-fast {
+  animation: gradientMove 3s linear infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0px rgba(90, 27, 109, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(90, 27, 109, 0.4);
+  }
+}
+
+@keyframes gradient-move {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-move 5s linear infinite;
+}

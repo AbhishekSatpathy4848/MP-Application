@@ -32,6 +32,7 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [isClient, setIsClient] = useState(false); // Fix hydration issues
+  const [userId, setUserId] = useState<string | null>(null); // Store user ID from localStorage
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageContainerRef = useRef<HTMLDivElement>(null);
   const voiceConversationRef = useRef<HTMLDivElement>(null);
@@ -67,9 +68,12 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
   const isActiveRef = useRef<boolean>(false);
   const [isActive, setIsActive] = useState<boolean>(false);
 
-  // Fix hydration issues by confirming we're on client
+  // Fix hydration issues by confirming we're on client and getting userId
   useEffect(() => {
     setIsClient(true);
+    // Get user ID from localStorage
+    const storedUserId = localStorage.getItem('user_id');
+    setUserId(storedUserId);
   }, []);
 
   // Update active state when recording or speaking changes
@@ -107,34 +111,33 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
 
   useEffect(() => {
     const fetchConversations = async () => {
-      if (!companyTicker) return;
+      if (!companyTicker || !userId) return;
       
       try {
         setIsFetching(true);
-        const response = await fetch(process.env.NEXT_PUBLIC_API_URL + `/${companyTicker}/agents/master_agent/conversations`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/${userId}/${companyTicker}/agents/master_agent/conversations`);
         if (response.ok) {
           const data = await response.json();
-          
           if (Array.isArray(data)) {
             const formattedMessages: Message[] = [];
             data.forEach((item: any, index: number) => {
-              if (item.user) {
+              if (item.role.toLowerCase() === "user") {
                 formattedMessages.push({
                   role: "user",
-                  content: item.user,
+                  content: item.content,
                   id: `user-${index}`
                 });
               }
               
-              if (item.assistant) {
+              if (item.role.toLowerCase() === "assistant") {
                 formattedMessages.push({
                   role: "agent",
-                  content: item.assistant,
+                  content: item.content,
                   id: `agent-${index}`
                 });
               }
             });
-            
+            console.log("Fetched messages:", formattedMessages);
             setMessages(formattedMessages);
           } else {
             console.error("Unexpected data format:", data);
@@ -149,10 +152,10 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
       }
     };
   
-    if (companyTicker && isClient) {
+    if (companyTicker && isClient && userId) {
       fetchConversations();
     }
-  }, [companyTicker, isClient]);
+  }, [companyTicker, isClient, userId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -205,7 +208,7 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
 
   const handleSendMessage = async (content?: string) => {
     const messageToSend = content || inputValue;
-    if (!messageToSend.trim()) return;
+    if (!messageToSend.trim() || !userId) return;
 
     const userMessage: Message = {
       role: "user",
@@ -219,7 +222,7 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
     setIsLoading(true);
 
     console.log("Sending message to agent:", userMessage.content);
-    const url = process.env.NEXT_PUBLIC_API_URL + `/${companyTicker}/agents/master_agent`;
+    const url = `${process.env.NEXT_PUBLIC_API_URL}/${userId}/${companyTicker}/agents/master_agent`;
     console.log("API URL:", url);
 
     try {
@@ -229,7 +232,6 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          company: companyTicker || "",
           query: userMessage.content,
           movement_prediction: storedContext?.movement_prediction || "",
           explanation: storedContext?.explanation || "",
@@ -278,8 +280,13 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
   const confirmClear = async () => {
     setShowConfirmDialog(false);
     
+    if (!userId || !companyTicker) {
+      console.error("Missing user ID or company ticker for clearing conversations");
+      return;
+    }
+    
     try {
-      const response = await fetch(process.env.NEXT_PUBLIC_API_URL + `/${companyTicker}/agents/master_agent/conversations`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/${userId}/${companyTicker}/agents/master_agent/conversations`, {
         method: "DELETE",
       });
 
@@ -754,8 +761,24 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
     return null;
   }
 
+  // Show a message if user isn't logged in
+  if (isClient && !userId) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-gradient-to-b from-zinc-900/80 to-zinc-950/80 backdrop-blur-md rounded-b-[2.5rem] border border-white/5">
+        <AlertCircle className="h-12 w-12 text-amber-400 mb-4" />
+        <h3 className="text-xl font-bold text-white mb-2">Authentication Required</h3>
+        <p className="text-zinc-400 text-center max-w-sm px-4 mb-4">
+          Please connect your Upstox account to use the AI agent features.
+        </p>
+        <Button className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
+          Connect Account
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-gradient-to-b from-zinc-900/80 to-zinc-950/80 backdrop-blur-md rounded-b-[2.5rem] border border-white/5"> 
+    <div className="h-full flex flex-col bg-gradient-to-b from-zinc-900/80 to-zinc-950/80 backdrop-blur-md rounded-b-[2.5rem] border border-white/5"> 
 
       {/* Messages Area - Explicitly set to fill available space while allowing scrolling */}
       <div 
@@ -1145,7 +1168,7 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
       )}
 
       {/* Input Area with Voice Button - Fixed at bottom */}
-      <div className="sticky bottom-0 z-20 px-6 py-4 bg-zinc-950/80 backdrop-blur-sm border-t border-zinc-800/30 rounded-b-[2.5rem]">
+      <div className="mt-auto px-6 py-4 bg-zinc-950/80 backdrop-blur-sm border-t border-zinc-800/30 rounded-b-[2.5rem]">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -1240,7 +1263,7 @@ export function AgentChatUI({ companyTicker }: ChatUIProps) {
             </div>
           </div>
         </form>
-        <div className="text-[12px] text-center text-zinc-500 mt-1">
+        <div className="text-[10px] text-center text-zinc-500 mt-1">
           {isLoading 
             ? "Thinking..." 
             : "Be clear and concise with your questions to obtain the best results."}

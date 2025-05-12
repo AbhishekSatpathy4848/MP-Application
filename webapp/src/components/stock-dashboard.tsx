@@ -107,30 +107,30 @@ export function StockDashboard() {
   return (
     <div className="flex w-full h-full m-2 p-2 flex-col bg-zinc-950 text-white rounded-3xl shadow-xl">
       <Dialog>
-        <div className="sticky top-0 z-10 flex items-center justify-between bg-zinc-900 p-3 rounded-2xl border-b border-zinc-800 shadow-md mb-2">
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-zinc-900 p-2 rounded-2xl border-b border-zinc-800 shadow-md mb-2">
           <div className="flex items-center">
             <Image 
               src="/fingreat.png" 
               alt="FinGReaT Logo" 
-              width={40} 
-              height={40} 
+              width={32} 
+              height={32} 
               className="mx-2 rounded-full shadow-lg" 
             />
-            <h2 className="text-lg font-bold tracking-wider drop-shadow-md bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500 text-transparent bg-clip-text">
+            <h2 className="text-base font-bold tracking-wider drop-shadow-md bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500 text-transparent bg-clip-text">
               FinGReaT
             </h2>
           </div>
           
           {/* Trade with section */}
-          <div className="flex items-center space-x-5 ml-auto mr-3">
-            <h2 className="text-sm font-semibold text-zinc-300">Trade with</h2>
+          <div className="flex items-center space-x-4 ml-auto mr-2">
+            <h2 className="text-xs font-semibold text-zinc-300">Trade with</h2>
             <div className="flex items-center group transition-all duration-300">
               <Link href="https://upstox.com/" target="_blank" rel="noopener noreferrer">
                 <Image
                   src="/upstox_logo.png"
                   alt="Upstox"
-                  width={42}
-                  height={42}
+                  width={36}
+                  height={36}
                   className="transition-transform relative duration-300 transform group-hover:translate-x-0 -ml-2 z-40 hover:scale-110 rounded-full p-1 bg-zinc-800 hover:bg-zinc-700"
                 />
               </Link>
@@ -168,13 +168,13 @@ export function StockDashboard() {
           {company ? (
             <DialogTrigger asChild>
               <Button
-                className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 active:from-blue-600 active:to-indigo-700 text-white rounded-full px-4 py-2 font-medium transition-all duration-300 hover:scale-105 active:scale-105 border border-blue-400/20 hover:shadow-lg active:shadow-inner"
+                className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 active:from-blue-600 active:to-indigo-700 text-white rounded-full px-3 py-1 text-xs font-medium transition-all duration-300 hover:scale-105 active:scale-105 border border-blue-400/20 hover:shadow-lg active:shadow-inner"
               >
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5">
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
-                    width="16" 
-                    height="16" 
+                    width="14" 
+                    height="14" 
                     viewBox="0 0 24 24" 
                     fill="none" 
                     stroke="currentColor" 
@@ -215,8 +215,8 @@ export function StockDashboard() {
           )}
         </div>
 
-        <div className="flex flex-row gap-3 p-2 h-full overflow-y-auto">
-          <div className="relative w-1/4 h-full overflow-y-auto border-r border-zinc-800 rounded-2xl bg-zinc-900/50 shadow-inner">
+        <div className="flex flex-col md:flex-row gap-3 p-2 h-full overflow-y-auto">
+          <div className="relative w-full md:w-1/4 h-64 md:h-full overflow-y-auto border-r border-zinc-800 rounded-2xl bg-zinc-900/50 shadow-inner">
             {loading ? (
               <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 bg-opacity-60 rounded-2xl backdrop-blur-sm">
                 <div className="loader"></div>
@@ -231,7 +231,7 @@ export function StockDashboard() {
             )}
           </div>
 
-          <div className="w-3/4 bg-zinc-900 p-5 rounded-2xl shadow-lg">
+          <div className="w-full md:w-3/4 bg-zinc-900 p-5 rounded-2xl shadow-lg">
             <ChatInterface 
               selectedStock={company} 
               onProcessingStateChange={setIsProcessing}

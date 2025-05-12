@@ -5,7 +5,7 @@ export async function POST(req: Request) {
   const { messages }: { messages: CoreMessage[] } = await req.json()
 
   const result = streamText({
-    model: openai("gpt-4o-mini"),
+    model: openai(process.env.OPENAI_MODEL || "gpt-4o-mini"),
     system: `You are a knowledgeable stock market assistant specializing in Indian markets, particularly the NIFTY 50 index.
     
     You can provide:

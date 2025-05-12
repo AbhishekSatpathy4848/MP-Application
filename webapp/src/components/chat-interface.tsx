@@ -91,25 +91,25 @@ const TypeWriter = ({ text }: { text: string }) => {
 // Loading animation component with fixed spacing
 const LoadingAnimation = ({ currentStage }: { currentStage: { stage: number; total: number; message: string } | null }) => {
   return (
-    <div className="flex items-center justify-center py-10">
+    <div className="flex items-center justify-center pb-6">
       <motion.div
         className="flex flex-col items-center"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="relative w-36 h-36 mb-3">
+        <div className="relative w-28 h-28">
           <LottieAnimation color="#60a5fa" />
         </div>
         <motion.div
-          className="text-blue-400 font-semibold text-lg text-center mt-2"
+          className="text-blue-400 font-semibold text-base text-center"
           animate={{ opacity: [0.7, 1, 0.7] }}
           transition={{ repeat: Infinity, duration: 2 }}
         >
           {currentStage?.message || "Analyzing..."}
         </motion.div>
         <motion.div 
-          className="text-xs text-zinc-400 mt-1"
+          className="text-2xs text-zinc-400 mt-0.5"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
@@ -494,7 +494,7 @@ function handleParsedMessage(msg: any) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="flex flex-col items-center justify-center h-full space-y-8 text-center px-6"
+            className={`flex ${selectedStock ? 'flex-row items-center justify-center' : 'flex-col items-center justify-center'} h-full space-y-0 ${selectedStock ? 'space-x-8' : 'space-y-8'} text-center px-6`}
           >
             <motion.div
               whileHover={{ rotate: 5, scale: 1.05 }}
@@ -504,17 +504,17 @@ function handleParsedMessage(msg: any) {
               <Image
                 src="/fingreat.png"
                 alt="FinGReaT Logo"
-                width={120}
-                height={120}
+                width={selectedStock ? 80 : 100}
+                height={selectedStock ? 80 : 100}
                 className="rounded-full"
               />
             </motion.div>
-            <div className="space-y-4 max-w-md">
+            <div className={`space-y-4 max-w-md ${selectedStock ? 'text-left' : ''}`}>
               <motion.h1
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
-                className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500 text-transparent bg-clip-text"
+                className="text-2xl font-bold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500 text-transparent bg-clip-text"
               >
                 Welcome to FinGReaT
               </motion.h1>
@@ -522,15 +522,15 @@ function handleParsedMessage(msg: any) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="text-zinc-300 leading-relaxed"
+                className="text-zinc-300 text-sm leading-relaxed"
               >
                 Your AI assistant for analyzing financial news and predicting market impacts.
                 {selectedStock ? (
-                  <span className="block mt-2 text-blue-400">
+                  <span className="block mt-2 text-blue-400 text-xs">
                     Enter news about <strong>{selectedStock}</strong> to analyze.
                   </span>
                 ) : (
-                  <span className="block mt-2 text-amber-400">
+                  <span className="block mt-2 text-amber-400 text-xs">
                     Please select a stock from the sidebar first.
                   </span>
                 )}
@@ -561,7 +561,7 @@ function handleParsedMessage(msg: any) {
                     strokeLinejoin="round"
                     className="text-blue-400"
                   >
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1-2 2z"></path>
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                   </svg>
                 </div>
                 <div className="text-xs text-zinc-400 uppercase font-medium tracking-wide">Input News</div>
@@ -631,7 +631,7 @@ function handleParsedMessage(msg: any) {
                     strokeLinejoin="round"
                     className="text-blue-400"
                   >
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1-2 2z"></path>
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                   </svg>
                 </div>
                 <div className="text-xs text-zinc-400 uppercase font-medium tracking-wide">Input News</div>
@@ -681,7 +681,7 @@ function handleParsedMessage(msg: any) {
                   <RefreshCcw className="size-4" />
                   New Analysis
                 </Button>
-                <Button
+                {/* <Button
                   onClick={() => {
                     // Continue conversation logic
                     setInterfaceState("EMPTY")
@@ -701,11 +701,11 @@ function handleParsedMessage(msg: any) {
   strokeLinejoin="round"
   className="text-white"
 >
-  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1-2-2h14a2 2 0 0 1-2 2z" />
 </svg>
 
                   Continue with AI Agent
-                </Button>
+                </Button> */}
               </div>
             </motion.div>
           </div>
@@ -830,7 +830,7 @@ function handleParsedMessage(msg: any) {
               </motion.div>
             </div>
           </form>
-          <div className="text-[12px] text-center text-zinc-500 mt-1">
+          <div className="text-[10px] text-center text-zinc-500 mt-1">
             {isProcessingActive 
               ? "Please wait while we analyze the news..." 
               : "Use clear and specific financial news for best analysis results"}

@@ -19,7 +19,6 @@
   --font-mono: var(--font-mono);
 }
 
-
 /* Global styles */
 body {
   background-color: var(--background);
@@ -27,7 +26,37 @@ body {
   font-family: var(--font-sans);
   margin: 0;
   padding: 0;
-  line-height: 1.6;
+  line-height: 1.5;
+  font-size: 13px; /* Reduced base font size from 14px */
+}
+
+html {
+  font-size: 13px; /* Reduced root font size from 14px */
+}
+
+/* Size adjustments for text in components */
+.text-xl {
+  font-size: 1.1rem !important; /* Reduced from 1.15rem */
+}
+
+.text-lg {
+  font-size: 1rem !important; /* Reduced from 1.05rem */
+}
+
+.text-base {
+  font-size: 0.9rem !important; /* Reduced from 0.95rem */
+}
+
+.text-sm {
+  font-size: 0.8rem !important; /* Reduced from 0.85rem */
+}
+
+.text-xs {
+  font-size: 0.7rem !important; /* Reduced from 0.75rem */
+}
+
+.text-2xs {
+  font-size: 0.65rem !important; /* Added for extra small text */
 }
 
 /* Modern scrollbar styling */

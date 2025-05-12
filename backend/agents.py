@@ -22,6 +22,30 @@ from tools import (
 from templates import INSTRUMENT_KEYS
 from fingreat import to_json
 
+class ChatSession:
+    def __init__(self, user_id, company_name):
+        self.user_id = user_id
+        self.company_name = company_name
+        self.messages = []
+        self.created_at = datetime.now()
+        self.last_updated = datetime.now()
+
+    def add_message(self, role, content):
+        self.messages.append({"role": role, "content": content})
+        self.last_updated = datetime.now()
+
+    def get_conversation_text(self):
+        return "\n".join([f"{msg['role']}: {msg['content']}" for msg in self.messages])
+
+# Updated conversation storage structure
+user_conversations = {
+    "stock_agent": {},      # {user_id: {company: ChatSession}}
+    "financial_agent": {},   # {user_id: {company: ChatSession}}
+    "background_agent": {},  # {user_id: {company: ChatSession}}
+    "trading_agent": {},     # {user_id: {company: ChatSession}}
+    "master_agent": {}       # {user_id: {company: ChatSession}}
+}
+
 TOOL_DESCRIPTIONS = {
     "get_stock_price_range_tool": {
         "description": "Fetches historical stock price data (OHLCV) for a given Nifty 50 company between a start and end date.",
@@ -151,14 +175,22 @@ In case you need it, here are the company name to instrument keys mappings: {INS
 # Global Per-Agent Conversation Store (Per User)
 # ----------------------------------------------
 
-user_conversations = {
-    "stock_agent": {},
-    "financial_agent": {},
-    "background_agent": {},
-    "trading_agent": {},
-    "master_agent": {}
-}
+last_stock_data_context = {}  # Stores last data context per user
 
+def get_or_create_session(agent_type, user_id, company_name):
+    if company_name is None:
+        company_name = "general"  # Use a default company name for general conversations
+        
+    if agent_type not in user_conversations:
+        user_conversations[agent_type] = {}
+    
+    if user_id not in user_conversations[agent_type]:
+        user_conversations[agent_type][user_id] = {}
+        
+    if company_name not in user_conversations[agent_type][user_id]:
+        user_conversations[agent_type][user_id][company_name] = ChatSession(user_id, company_name)
+    
+    return user_conversations[agent_type][user_id][company_name]
 
 # ----------------------------------------------
 # Agent 1: Stock Price Agent
@@ -166,7 +198,6 @@ user_conversations = {
 
 MIN_DATE = "2003-01-01"
 MAX_DATE = "2025-04-28"
-last_stock_data_context = {}  # Stores last data context per user
 
 def check_if_data_required(query, company_name, existing_start=None, existing_end=None):
     existing_range_str = (
@@ -239,44 +270,35 @@ def extract_dates_from_prompt(prompt):
     return None, None
 
 def stock_price_agent(user_id, company_name, query):
-    conv = user_conversations["stock_agent"].setdefault(user_id, [])
-    conv.append({"user": query})
-    existing_context = last_stock_data_context.get(user_id, "")
-    existing_start, existing_end = extract_dates_from_prompt(existing_context)  # Your utility to pull from the stored string
-
-    # needs_data = check_if_data_required(query, company_name, existing_start, existing_end)
+    session = get_or_create_session("stock_agent", user_id, company_name)
+    session.add_message("user", query)
+    
     needs_data = True
 
     if needs_data:
-        # Fresh stock data fetch
-        # print("Does need data!!")
         start_date, end_date = infer_date_range_from_query(query)
         df = get_stock_price_range_tool(company_name, start_date, end_date)
         if df.empty:
-            conv[-1]["assistant"] = f"No stock data found for {company_name} between {start_date} and {end_date}."
-            return conv[-1]["assistant"]
+            result = f"No stock data found for {company_name} between {start_date} and {end_date}."
+            session.add_message("assistant", result)
+            return result
 
         ohlc_str = df.to_string(index=False)
-        last_stock_data_context[user_id] = STOCK_ANALYSIS_SYSTEM_PROMPT.format(
+        last_stock_data_context[(user_id, company_name)] = STOCK_ANALYSIS_SYSTEM_PROMPT.format(
             company=company_name,
             start_date=start_date,
             end_date=end_date,
             ohlc_data=ohlc_str
         )
-        # Isolate query to be processed freshly
         conversation_text = f"User: {query}"
-        result = query_gemini(system_prompt=last_stock_data_context[user_id], prompts=conversation_text)
+        result = query_gemini(system_prompt=last_stock_data_context[(user_id, company_name)], prompts=conversation_text)
 
     else:
-        # Use old context if exists (for follow-ups)
-        # print("No data required!!")
-        # print("prior context:", last_stock_data_context)
-        prior_context = last_stock_data_context.get(user_id, "")
-        conversation_text = "\n".join([f"User: {c['user']}\nAssistant: {c.get('assistant', '')}" for c in conv])
+        prior_context = last_stock_data_context.get((user_id, company_name), "")
+        conversation_text = session.get_conversation_text()
         result = query_gemini(system_prompt=prior_context, prompts=conversation_text)
 
-    conv[-1]["assistant"] = result
-    # save_conversation_to_file(user_id, "stock_agent", conv)
+    session.add_message("assistant", result)
     return result
 
 # ----------------------------------------------
@@ -284,18 +306,18 @@ def stock_price_agent(user_id, company_name, query):
 # ----------------------------------------------
 
 def financial_metrics_agent(user_id, company_name, query):
+    session = get_or_create_session("financial_agent", user_id, company_name)
+    session.add_message("user", query)
+    
     report = get_company_financials_tool(company=company_name)
     if not report:
         return "No financial data available for this company."
 
     system_prompt = FINANCIALS_SYSTEM_PROMPT.format(company=company_name, financial_report=report)
-
-    conv = user_conversations["financial_agent"].setdefault(user_id, [])
-    conv.append({"user": query})
-    conversation_text = "\n".join([f"User: {c['user']}\nAssistant: {c.get('assistant', '')}" for c in conv])
-
+    conversation_text = session.get_conversation_text()
+    
     result = query_gemini(system_prompt=system_prompt, prompts=conversation_text)
-    conv[-1]["assistant"] = result
+    session.add_message("assistant", result)
     return result
 
 # ----------------------------------------------
@@ -303,95 +325,77 @@ def financial_metrics_agent(user_id, company_name, query):
 # ----------------------------------------------
 
 def company_background_agent(user_id, company_name, query):
+    session = get_or_create_session("background_agent", user_id, company_name)
+    session.add_message("user", query)
+    
     summary = get_company_background_information_tool(company=company_name)
     if not summary:
-        return "No background information available."
+        result = "No background information available."
+        session.add_message("assistant", result)
+        return result
 
     system_prompt = BACKGROUND_SYSTEM_PROMPT.format(company=company_name, company_background=summary)
-
-    conv = user_conversations["background_agent"].setdefault(user_id, [])
-    conv.append({"user": query})
-    conversation_text = "\n".join([f"User: {c['user']}\nAssistant: {c.get('assistant', '')}" for c in conv])
-
+    conversation_text = session.get_conversation_text()
+    
     result = query_gemini(system_prompt=system_prompt, prompts=conversation_text)
-    conv[-1]["assistant"] = result
+    session.add_message("assistant", result)
     return result
 
 # ----------------------------------------------
 # Agent 4: Trading Agent (with autonomous reasoning)
 # ----------------------------------------------
-def trading_agent(user_id, query, company=None):
-    # Get the current account balance once at the start.
-    # user_account_balance = view_upstox_account_balance_tool()
-    # system_prompt = (
-    #     TRADING_SYSTEM_PROMPT + "\n" +
-    #     f"The stock the user wants to buy might be {company} and the User's current account balance is ₹{user_account_balance}. Cancel the order if sufficient funds are not available."
-    # )
-
-    # Maintain the conversation history.
-    conv = user_conversations["trading_agent"].setdefault(user_id, [])
-    conv.append({"user": query})
-
-    # Loop until the agent response does not ask for a function call.
+def trading_agent(user_id, query, company=None, access_token=None):
+    if access_token is None:
+        return "Access token is required for trading operations."
+    if company is None:
+        return "Company name is required for trading operations."
+    
+    session = get_or_create_session("trading_agent", user_id, company)
+    session.add_message("user", query)
+    
     while True:
-        # print("Conversations")
-        # print(conv)
-
-        conversation_text = "\n".join(
-            [f"User: {c['user']}\nAssistant: {c.get('assistant', '')}" for c in conv]
-        )
+        conversation_text = session.get_conversation_text()
         
-        # Query Gemini with the current system prompt and conversation history.
         agent_reply = query_gemini(system_prompt=TRADING_SYSTEM_PROMPT, prompts=conversation_text)
 
         try:
             agent_json = to_json(agent_reply)
         except Exception as e:
-            # If JSON parsing fails, add the plain response and exit the loop.
-            conv[-1]["assistant"] = agent_reply
+            session.add_message("assistant", agent_reply)
             return agent_reply
 
         function_name = agent_json.get("function")
         response_text = agent_json.get("response", "")
 
-        print("Calling function:", function_name, response_text)
-
-        # Record the assistant's response.
-        conv[-1]["assistant"] = response_text
+        session.add_message("assistant", response_text)
 
         if function_name in TOOL_DESCRIPTIONS.keys():
-            # If Gemini indicates a tool should be called, prepare the arguments.
             tool_args = agent_json.get("arguments", {})
 
             try:
-                tool_result = call_trading_tools(function_name, tool_args)
-                print("Tool Result:", tool_result)
+                tool_result = call_trading_tools(function_name, tool_args, access_token=access_token)
             except Exception as e:
                 tool_result = f"Error performing the action {function_name.replace('_', ' ')} due to {e.message}"
                 response_text = tool_result
-                print(f"Error: {e}")
 
-            # Append the result of the tool call to the conversation.
-            conv.append({"user": f"The tool {function_name} returned: {tool_result}. Please summarize the result to the user. Can we reply to the user now or do we need have to make some more tool calls?"})
+            session.add_message("user", f"The tool {function_name} returned: {tool_result}. Please summarize the result to the user. Can we reply to the user now or do we need have to make some more tool calls?")
         else:
-            # No tool is being called, so break out of the loop.
             break
 
-    # Return the final assistant response.
     return response_text
 
 
-def call_trading_tools(name, args):
+def call_trading_tools(name, args, **kwargs):
     if name == "view_upstox_account_balance_tool":
-        return view_upstox_account_balance_tool()
+        return view_upstox_account_balance_tool(**kwargs)
     elif name == "get_live_market_price_tool":
-        return get_live_market_price_tool(**args)
+        return get_live_market_price_tool(**args, **kwargs)
     elif name == "place_upstox_order_tool":
-        return place_upstox_order_tool(**args)
+        return place_upstox_order_tool(**args, **kwargs)
     else:
         return f"Unknown tool: {name}"
     
-def call_agent(user_id, agent_type, query, company=None):
+def call_agent(user_id, agent_type, query, company=None, access_token=None):
     if agent_type == "stock_price_agent":
         return stock_price_agent(user_id, company, query)
     elif agent_type == "financial_metrics_agent":
@@ -399,14 +403,47 @@ def call_agent(user_id, agent_type, query, company=None):
     elif agent_type == "company_background_agent":
         return company_background_agent(user_id, company, query)
     elif agent_type == "trading_agent":
-        return trading_agent(user_id, query, company=company)
+        return trading_agent(user_id, query, company=company, access_token=access_token)
     else:
         return f"Unknown agent type: {agent_type}"
 
 
-def get_conversation_history(user_id, agent_type):
-    return user_conversations.get(agent_type, {}).get(user_id, [])
+def get_conversation_history(user_id, agent_type, company=None):
+    """
+    Retrieves conversation history for a specific user, agent, and optionally company.
+    Returns a list of messages in the format [{"role": role, "content": content}, ...]
+    """
+    if company is None:
+        company = "general"
+        
+    if (agent_type in user_conversations and 
+        user_id in user_conversations[agent_type] and 
+        company in user_conversations[agent_type][user_id]):
+        
+        session = user_conversations[agent_type][user_id][company]
+        return session.messages
+    
+    return []
 
+def clear_conversation_history(user_id, agent_type=None, company=None):
+    """
+    Clears conversation history at specified level (all, agent, or company specific)
+    """
+    if company is None:
+        company = "general"
+        
+    if agent_type is None:
+        # Clear all conversations for the user
+        for agent in user_conversations:
+            user_conversations[agent].pop(user_id, None)
+    else:
+        if user_id in user_conversations.get(agent_type, {}):
+            if company:
+                # Clear specific company conversation
+                user_conversations[agent_type][user_id].pop(company, None)
+            else:
+                # Clear all companies for this agent
+                user_conversations[agent_type].pop(user_id, None)
 
 MASTER_AGENT_PROMPT = """
     You are an AI agent that helps users with stock trading and financial analysis, helping them make more informed decisions.
@@ -435,12 +472,10 @@ MASTER_AGENT_PROMPT = """
     2. MAKE SURE YOU RELAY THE CORRECT INFORMATION FROM THE USER INPUT QUERY TO THE AGENT. THE AGENTS ARE ALSO AI ASSISTANTS TO HELP YOU ANSWER QUESTIONS.
 """
 
-def master_agent(user_id, query, news = None, movement_prediction=None, explanation=None, company=None):
-    conv = user_conversations["master_agent"].setdefault(user_id, [])
-    conv.append({"user": query})
-
-    conversation_text = "\n".join([f"User: {c['user']}\nAssistant: {c.get('assistant', '')}" for c in conv])
-
+def master_agent(user_id, query, news=None, movement_prediction=None, explanation=None, company=None, access_token=None):
+    session = get_or_create_session("master_agent", user_id, company)
+    session.add_message("user", query)
+    
     additional_prompt = ""
     if news and movement_prediction and explanation:
         additional_prompt = f"""
@@ -452,11 +487,7 @@ def master_agent(user_id, query, news = None, movement_prediction=None, explanat
 
     system_prompt = MASTER_AGENT_PROMPT + additional_prompt
 
-    # print("Master Agent System Prompt:", system_prompt)
-
-    result = query_gemini(system_prompt=system_prompt, prompts=conversation_text)
-
-    print("Master Agent Result:", result)
+    result = query_gemini(system_prompt=system_prompt, prompts=session.get_conversation_text())
 
     try:
         result_json = to_json(result)
@@ -464,41 +495,72 @@ def master_agent(user_id, query, news = None, movement_prediction=None, explanat
         response_to_agent = result_json.get("response_to_agent", "")
         response_to_user = result_json.get("response_to_user", "")
 
+        print(f"Agent Name: {agent_name}")
+        print(f"Response to Agent: {response_to_agent}")
+        print(f"Response to User: {response_to_user}")
+
         if agent_name:
-            result = call_agent(user_id, agent_name, response_to_agent, company)
-            conv[-1]["assistant"] = result
+            result = call_agent(user_id, agent_name, response_to_agent, company, access_token=access_token)
+            session.add_message("assistant", result)
             return result
         else:
-            conv[-1]["assistant"] = response_to_user
+            session.add_message("assistant", response_to_user)
             return response_to_user
-
+    
     except Exception as e:
-        conv[-1]["assistant"] = f"Error processing query: {str(e)}"
-        return f"Error processing query: {str(e)}"
-
-
-def clear_conversation_history(user_id, agent_type):
-    if agent_type == "master_agent":
-        for agent in user_conversations:
-            user_conversations[agent].pop(user_id, None)
-        return
-    if agent_type in user_conversations:
-        user_conversations[agent_type].pop(user_id, None)
-    else:
-        print(f"Agent type {agent_type} not found.")
+        error_msg = f"Error processing query: {str(e)}"
+        session.add_message("assistant", error_msg)
+        return error_msg
 
 if __name__ == "__main__":
 
     print("Welcome to the Master Agent!")
     user_id = "terminal_user"
-    company_name = ""
+    company_name = "INFY"
     query = ""
 
     while True:
-        query = input("Enter your query: ").strip()
-        # try:
-        response = master_agent(user_id, query)
-        print("Final Response")
-        print(response)
-        # except Exception as e:
-        #     print(f"An error occurred: {e}", file=sys.stderr)
+        print("\nOptions:")
+        print("1. Enter a query")
+        print("2. View conversation history")
+        print("3. Exit")
+        choice = input("Enter your choice (1/2/3): ").strip()
+
+        if choice == "1":
+            query = input("Enter your query: ").strip()
+            response = master_agent(user_id, query, company=company_name, access_token="your_access_token_here")
+            print("Final Response")
+            print(response)
+        elif choice == "2":
+            print("\nAvailable Agents:")
+            print("1. Stock Price Agent")
+            print("2. Financial Report Agent")
+            print("3. Company Background Agent")
+            print("4. Trading Agent")
+            print("5. Master Agent")
+            agent_choice = input("Select an agent to view history (1-5): ").strip()
+
+            agent_map = {
+                "1": "stock_agent",
+                "2": "financial_agent",
+                "3": "background_agent",
+                "4": "trading_agent",
+                "5": "master_agent"
+            }
+
+            agent_type = agent_map.get(agent_choice)
+            if agent_type:
+                history = get_conversation_history(user_id, agent_type, company_name)
+                if history:
+                    print("\nConversation History:")
+                    for msg in history:
+                        print(f"{msg['role']}: {msg['content']}")
+                else:
+                    print("No conversation history found for the selected agent.")
+            else:
+                print("Invalid agent selection.")
+        elif choice == "3":
+            print("Exiting. Goodbye!")
+            break
+        else:
+            print("Invalid choice. Please try again.")  

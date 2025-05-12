@@ -48,8 +48,10 @@ def get_company_background_information_tool(company):
     result = query_gemini(prompt)
     return result
 
-def view_upstox_account_balance_tool():
-    access_token = os.getenv("UPSTOX_ACCESS_TOKEN")
+def view_upstox_account_balance_tool(access_token=None):
+    if access_token is None:
+        return "No access token provided"
+    
     url = 'https://api.upstox.com/v2/user/get-funds-and-margin?segment=SEC'
 
     headers = {
@@ -62,8 +64,10 @@ def view_upstox_account_balance_tool():
         return data["data"]["equity"]["available_margin"]
     return 0
 
-def place_upstox_order_tool(instrument_token, order_type, quantity, price, transaction_type):
-    access_token = os.getenv("UPSTOX_ACCESS_TOKEN")
+def place_upstox_order_tool(instrument_token, order_type, quantity, price, transaction_type, access_token=None):
+    if access_token is None:
+        return "No access token provided"
+
     url = 'https://api.upstox.com/v2/order/place'
 
     headers = {
@@ -100,8 +104,9 @@ def place_upstox_order_tool(instrument_token, order_type, quantity, price, trans
         print(f"Error placing order: {response.status_code} - {response.text}")
         return None
 
-def get_live_market_price_tool(instrument_token):
-    access_token = os.getenv("UPSTOX_ACCESS_TOKEN")
+def get_live_market_price_tool(instrument_token, access_token=None):
+    if access_token is None:
+        return "No access token provided"
 
     url = 'https://api.upstox.com/v2/market-quote/ltp?instrument_key={instrument_token}'.format(instrument_token=instrument_token)
     headers = {

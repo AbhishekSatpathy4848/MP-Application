@@ -1,8 +1,10 @@
 # Import necessary modules
 import asyncio
+from datetime import datetime, timedelta
 import json
 import os
 import ssl
+import requests
 import upstox_client
 import websockets
 from google.protobuf.json_format import MessageToDict
@@ -40,6 +42,9 @@ CORS(app)  # This enables CORS for all routes
 
 # Global variable to store market data
 market_data = {}
+
+# Initialize access_tokens dictionary before defining routes
+access_tokens = {}
 
 def get_market_data_feed_authorize(api_version, configuration):
     """Get authorization for market data feed."""
@@ -323,36 +328,96 @@ def get_time_series_price():
     to_date = request.args.get('to_date')
     return fetch_price_for_company(company, from_date, to_date)
 
-@app.route('/<user_id>/agents/<agent_name>/conversations', methods=['GET'])
-def get_conversations(user_id, agent_name):
-    conversations = get_conversation_history(user_id, agent_name)
+@app.route('/<user_id>/<company_ticker>/agents/<agent_name>/conversations', methods=['GET'])
+def get_conversations(user_id, company_ticker, agent_name):
+    conversations = get_conversation_history(user_id, agent_name, company_ticker)
     return jsonify(conversations)
 
-@app.route('/<user_id>/agents/<agent_name>/conversations', methods=['DELETE'])
-def clear_conversations(user_id, agent_name):
-    clear_conversation_history(user_id, agent_name)
+@app.route('/<user_id>/<company_ticker>/agents/<agent_name>/conversations', methods=['DELETE'])
+def clear_conversations(user_id, company_ticker,agent_name):
+    clear_conversation_history(user_id, agent_name, company_ticker)
     return jsonify({"message": "Conversations cleared successfully"}), 200
 
 
-@app.route('/<user_id>/agents/master_agent', methods=['POST'])
-def query_master_agent(user_id):
+@app.route('/<user_id>/<company_ticker>/agents/master_agent', methods=['POST'])
+def query_master_agent(user_id, company_ticker):
     data = request.get_json()
+
+    print(data)
     
     movement_prediction, explanation, news = (data.get('movement_prediction', None), data.get('explanation', None), data.get('news', None))
     if (movement_prediction is None or explanation is None or news is None) and not (movement_prediction is None and explanation is None and news is None):
         return jsonify({"error": "Either provide all of movement_prediction, explanation, and news, or none of them"}), 400
-
     
-    company = data.get('company', None)
-    if not company:
-        return jsonify({"error": "Please send company name"}), 400
+    company = company_ticker
     
     query = data.get('query', None)
     if not query:
         return jsonify({"error": "Please send user query"}), 400
     
-    response = master_agent(user_id, query, movement_prediction = movement_prediction, explanation = explanation, news=news, company = company)
+    access_token = access_tokens.get(user_id, {}).get('access_token')
+    
+    if not access_token or access_tokens.get(user_id, {}).get('expires_at') < datetime.now():
+        return "User not signed in, access token expired", 401
+    
+    response = master_agent(user_id, query, movement_prediction = movement_prediction, explanation = explanation, news=news, company = company, access_token = access_token)
     return response
+
+# save access token per user
+@app.route('/upstox/save_access_token', methods=['POST'])
+def save_access_token():
+    data = request.get_json()
+    access_token = data.get('access_token')
+    user_id = data.get('user_id')
+    if not access_token or not user_id:
+        return jsonify({"error": "Missing access token or user ID"}), 400
+
+    access_tokens[user_id] = {
+        "access_token": access_token,
+        "expires_at": (datetime.now().replace(hour=3, minute=30, second=0, microsecond=0) 
+                       + timedelta(days=1) if datetime.now().hour >= 3 else datetime.now().replace(hour=3, minute=30, second=0, microsecond=0))
+    }
+
+    return jsonify({"message": "Access token saved successfully"}), 200
+
+@app.route('/upstox/user_signed_in', methods=['GET'])
+def is_signed_in():
+    user_id = request.args.get('user_id')
+    print(f"Checking sign-in status for user_id: {user_id}")  # Debug log
+    print(access_tokens)
+    if not user_id or user_id not in access_tokens:
+        return jsonify({"is_signed_in": False}), 200
+
+    token_info = access_tokens[user_id]
+    if datetime.now() >= token_info["expires_at"]:
+        return jsonify({"is_signed_in": False}), 200
+
+    return jsonify({"is_signed_in": True}), 200
+
+@app.route('/upstox/logout', methods=['GET'])
+def logout():
+    user_id = request.args.get('user_id')
+    if not user_id or user_id not in access_tokens:
+        return jsonify({"error": "User not signed in"}), 400
+
+    url = "https://api.upstox.com/v2/logout"
+    
+    payload={}
+    
+    headers = {
+        "Authorization": f"Bearer {access_tokens[user_id]['access_token']}",
+        'Accept': 'application/json'
+    }
+
+    response = requests.request("DELETE", url, headers=headers, data=payload)
+    
+    if response.status_code != 200:
+        return jsonify({"error": "Failed to log out"}), 500
+    
+    del access_tokens[user_id]
+    
+    return jsonify({"message": "Logged out successfully"}), 200
+
 
 @app.route('/', methods=['GET'])
 def index():
@@ -366,6 +431,6 @@ if __name__ == '__main__':
     background_thread.start()
     
     # Start the Flask application
-    app.run(debug=False, host='0.0.0.0', port=8000)
+    app.run(debug=True, host='0.0.0.0', port=8000)
 
 
